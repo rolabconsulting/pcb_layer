@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCB Thickness Measurement Tool</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .main-canvas {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #2a2a2a;
+        }
+
+        h1 {
+            font-size: 20px;
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 16px;
+            color: #555;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .upload-section {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-section:hover {
+            border-color: #1976d2;
+            background: #f8f9fa;
+        }
+
+        .upload-section.active {
+            border-color: #1976d2;
+            background: #e3f2fd;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: #1976d2;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1565c0;
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #45a049;
+        }
+
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #f57c00;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .input-group label {
+            font-size: 14px;
+            font-weight: 500;
+            min-width: 100px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .input-group select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        canvas.grabbing {
+            cursor: grabbing;
+        }
+
+        canvas.grab {
+            cursor: grab;
+        }
+
+        .measurements-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+
+        .measurement-item {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+        }
+
+        .measurement-item:hover {
+            background: #f8f9fa;
+        }
+
+        .measurement-item:last-child {
+            border-bottom: none;
+        }
+
+        .measurement-info {
+            flex: 1;
+        }
+
+        .measurement-label {
+            font-weight: 500;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .measurement-value {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .delete-btn {
+            padding: 6px 12px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .delete-btn:hover {
+            background: #d32f2f;
+        }
+
+        .result-box {
+            background: #e3f2fd;
+            padding: 16px;
+            border-radius: 8px;
+            border: 2px solid #1976d2;
+        }
+
+        .result-label {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        .result-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .info-text {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 3px solid #1976d2;
+        }
+
+        .mode-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-btn:hover {
+            background: rgba(0, 0, 0, 0.95);
+        }
+
+        .zoom-level {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="app-container">
+            <div class="sidebar">
+                <h1>PCB Thickness Measurement</h1>
+
+                <div>
+                    <h2>1. Upload Image</h2>
+                    <div id="uploadSection" class="upload-section active">
+                        <p id="uploadText">📁 Click to upload PCB image</p>
+                        <input type="file" id="fileInput" accept="image/*" />
+                    </div>
+                </div>
+
+                <div>
+                    <h2>2. Calibrate Scale</h2>
+                    <div class="input-group">
+                        <label>Known length:</label>
+                        <input type="number" id="calibrationLength" value="10" step="0.1" />
+                        <select id="calibrationUnit">
+                            <option value="mm">mm</option>
+                            <option value="μm">μm</option>
+                            <option value="cm">cm</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="calibrateBtn" disabled>
+                        Start Calibration
+                    </button>
+                    <div class="info-text" id="calibrationInfo" style="margin-top: 10px; display: none;">
+                        ✓ Scale calibrated
+                    </div>
+                </div>
+
+                <div>
+                    <h2>3. Measure Layers</h2>
+                    <button class="btn btn-success" id="measureBtn" disabled>
+                        Add Measurement
+                    </button>
+                    
+                    <div class="measurements-list" id="measurementsList" style="margin-top: 10px;">
+                        <div class="empty-state">No measurements yet</div>
+                    </div>
+                </div>
+
+                <div id="resultBox" style="display: none;">
+                    <h2>4. Results</h2>
+                    <div class="result-box">
+                        <div class="result-label">Average Copper Thickness:</div>
+                        <div class="result-value" id="averageThickness">0.000 mm</div>
+                        <div class="result-label" style="margin-top: 12px;">
+                            Total measurements: <span id="totalMeasurements">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h2>View Controls</h2>
+                    <div class="controls">
+                        <button class="btn btn-secondary" id="panBtn" disabled>
+                            🖐️ Pan
+                        </button>
+                        <button class="btn btn-secondary" id="resetViewBtn" disabled>
+                            ↺ Reset View
+                        </button>
+                    </div>
+                    <div class="info-text">
+                        💡 Zoom: Mouse wheel<br/>
+                        💡 Pan: Middle mouse button or Pan mode<br/>
+                        💡 Adjust: Click and drag line endpoints<br/>
+                        <span id="zoomDisplay">Current zoom: 100%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-canvas">
+                <div class="mode-indicator" id="modeIndicator" style="display: none;">
+                    👆 Select a mode to begin
+                </div>
+                <div class="zoom-controls" id="zoomControls" style="display: none;">
+                    <button class="zoom-btn" id="zoomIn">+</button>
+                    <div class="zoom-level" id="zoomLevel">100%</div>
+                    <button class="zoom-btn" id="zoomOut">−</button>
+                </div>
+                <canvas id="canvas" style="width: 100%; height: 100%;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Application State
+        let state = {
+            image: null,
+            mode: 'none',
+            calibration: null,
+            calibrationLength: '10',
+            calibrationUnit: 'mm',
+            measurements: [],
+            currentLine: null,
+            zoom: 1,
+            pan: { x: 0, y: 0 },
+            isPanning: false,
+            lastPanPoint: null,
+            isShiftPressed: false,
+            draggingEndpoint: null,  // { measurementId, endpoint: 'start' or 'end' } or { type: 'calibration', endpoint: 'start' or 'end' }
+            hoveredEndpoint: null  // Same structure as draggingEndpoint
+        };
+
+        // DOM Elements
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const calibrationLengthInput = document.getElementById('calibrationLength');
+        const calibrationUnitSelect = document.getElementById('calibrationUnit');
+        const calibrateBtn = document.getElementById('calibrateBtn');
+        const measureBtn = document.getElementById('measureBtn');
+        const panBtn = document.getElementById('panBtn');
+        const resetViewBtn = document.getElementById('resetViewBtn');
+        const measurementsList = document.getElementById('measurementsList');
+        const modeIndicator = document.getElementById('modeIndicator');
+        const zoomLevel = document.getElementById('zoomLevel');
+        const resultBox = document.getElementById('resultBox');
+        const averageThickness = document.getElementById('averageThickness');
+        const totalMeasurements = document.getElementById('totalMeasurements');
+
+        // Initialize
+        function init() {
+            setupEventListeners();
+            updateUI();
+        }
+
+        function setupEventListeners() {
+            uploadSection.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleImageUpload);
+            
+            calibrationLengthInput.addEventListener('input', (e) => {
+                state.calibrationLength = e.target.value;
+            });
+            
+            calibrationUnitSelect.addEventListener('change', (e) => {
+                state.calibrationUnit = e.target.value;
+                updateUI();
+            });
+            
+            calibrateBtn.addEventListener('click', () => {
+                state.mode = 'calibration';
+                updateUI();
+            });
+            
+            measureBtn.addEventListener('click', () => {
+                state.mode = 'measurement';
+                updateUI();
+            });
+            
+            panBtn.addEventListener('click', () => {
+                state.mode = 'pan';
+                updateUI();
+            });
+            
+            resetViewBtn.addEventListener('click', resetView);
+            
+            canvas.addEventListener('mousedown', handleCanvasMouseDown);
+            canvas.addEventListener('mousemove', handleCanvasMouseMove);
+            canvas.addEventListener('mouseup', handleCanvasMouseUp);
+            canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
+            canvas.addEventListener('wheel', handleWheel, { passive: false });
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            
+            // Keyboard events for Shift key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Shift') {
+                    state.isShiftPressed = true;
+                }
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                if (e.key === 'Shift') {
+                    state.isShiftPressed = false;
+                }
+            });
+            
+            document.getElementById('zoomIn').addEventListener('click', () => {
+                zoomAtCenter(1.2);
+            });
+            
+            document.getElementById('zoomOut').addEventListener('click', () => {
+                zoomAtCenter(1 / 1.2);
+            });
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    state.image = img;
+                    state.mode = 'none';
+                    state.calibration = null;
+                    state.measurements = [];
+                    state.zoom = 1;
+                    state.pan = { x: 0, y: 0 };
+                    
+                    // Fit image to canvas
+                    setTimeout(() => {
+                        const containerWidth = canvas.offsetWidth;
+                        const containerHeight = canvas.offsetHeight;
+                        const scaleX = containerWidth / img.width;
+                        const scaleY = containerHeight / img.height;
+                        const fitZoom = Math.min(scaleX, scaleY, 1);
+                        state.zoom = fitZoom;
+                        state.pan = {
+                            x: (containerWidth - img.width * fitZoom) / 2,
+                            y: (containerHeight - img.height * fitZoom) / 2
+                        };
+                        updateUI();
+                    }, 10);
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left - state.pan.x) / state.zoom,
+                y: (e.clientY - rect.top - state.pan.y) / state.zoom
+            };
+        }
+
+        function isNearPoint(mousePos, point, threshold = 10) {
+            const distance = Math.sqrt(
+                Math.pow(mousePos.x - point.x, 2) + 
+                Math.pow(mousePos.y - point.y, 2)
+            );
+            return distance <= threshold / state.zoom;
+        }
+
+        function findEndpointUnderMouse(mousePos) {
+            // Check calibration line
+            if (state.calibration) {
+                if (isNearPoint(mousePos, state.calibration.start)) {
+                    return { type: 'calibration', endpoint: 'start' };
+                }
+                if (isNearPoint(mousePos, state.calibration.end)) {
+                    return { type: 'calibration', endpoint: 'end' };
+                }
+            }
+
+            // Check measurement lines
+            for (let i = state.measurements.length - 1; i >= 0; i--) {
+                const m = state.measurements[i];
+                if (isNearPoint(mousePos, m.line.start)) {
+                    return { type: 'measurement', measurementId: m.id, endpoint: 'start' };
+                }
+                if (isNearPoint(mousePos, m.line.end)) {
+                    return { type: 'measurement', measurementId: m.id, endpoint: 'end' };
+                }
+            }
+
+            return null;
+        }
+
+        function handleCanvasMouseDown(e) {
+            if (!state.image) return;
+            
+            const pos = getMousePos(e);
+            
+            // Middle mouse button or pan mode
+            if (e.button === 1 || state.mode === 'pan') {
+                e.preventDefault();
+                state.isPanning = true;
+                state.lastPanPoint = { x: e.clientX, y: e.clientY };
+                updateCursor();
+                return;
+            }
+            
+            if (e.button !== 0) return;
+            
+            // Check if clicking on an endpoint (only when not in a drawing mode)
+            if (state.mode === 'none' || state.mode === 'measurement') {
+                const endpoint = findEndpointUnderMouse(pos);
+                if (endpoint) {
+                    state.draggingEndpoint = endpoint;
+                    updateCursor();
+                    return;
+                }
+            }
+            
+            // Normal drawing behavior
+            if (state.mode === 'calibration' || state.mode === 'measurement') {
+                state.currentLine = { start: pos, end: pos };
+                drawCanvas();
+            }
+        }
+
+        function handleCanvasMouseMove(e) {
+            const pos = getMousePos(e);
+            
+            if (state.isPanning && state.lastPanPoint) {
+                const deltaX = e.clientX - state.lastPanPoint.x;
+                const deltaY = e.clientY - state.lastPanPoint.y;
+                state.pan.x += deltaX;
+                state.pan.y += deltaY;
+                state.lastPanPoint = { x: e.clientX, y: e.clientY };
+                drawCanvas();
+                return;
+            }
+            
+            // Dragging an endpoint
+            if (state.draggingEndpoint) {
+                let newPos = pos;
+                
+                // Apply Shift constraint for vertical lines
+                if (state.isShiftPressed) {
+                    if (state.draggingEndpoint.type === 'calibration') {
+                        const otherPoint = state.draggingEndpoint.endpoint === 'start' 
+                            ? state.calibration.end 
+                            : state.calibration.start;
+                        newPos.x = otherPoint.x;
+                    } else if (state.draggingEndpoint.type === 'measurement') {
+                        const measurement = state.measurements.find(m => m.id === state.draggingEndpoint.measurementId);
+                        if (measurement) {
+                            const otherPoint = state.draggingEndpoint.endpoint === 'start' 
+                                ? measurement.line.end 
+                                : measurement.line.start;
+                            newPos.x = otherPoint.x;
+                        }
+                    }
+                }
+                
+                if (state.draggingEndpoint.type === 'calibration') {
+                    state.calibration[state.draggingEndpoint.endpoint] = newPos;
+                } else if (state.draggingEndpoint.type === 'measurement') {
+                    const measurement = state.measurements.find(m => m.id === state.draggingEndpoint.measurementId);
+                    if (measurement) {
+                        measurement.line[state.draggingEndpoint.endpoint] = newPos;
+                        
+                        // Recalculate thickness
+                        const pixelLength = Math.sqrt(
+                            Math.pow(measurement.line.end.x - measurement.line.start.x, 2) +
+                            Math.pow(measurement.line.end.y - measurement.line.start.y, 2)
+                        );
+                        const calibrationPixels = Math.sqrt(
+                            Math.pow(state.calibration.end.x - state.calibration.start.x, 2) +
+                            Math.pow(state.calibration.end.y - state.calibration.start.y, 2)
+                        );
+                        measurement.thickness = (pixelLength / calibrationPixels) * parseFloat(state.calibrationLength);
+                    }
+                }
+                drawCanvas();
+                updateUI();
+                return;
+            }
+            
+            // Drawing a new line
+            if (state.currentLine && state.currentLine.start) {
+                let newPos = pos;
+                
+                // If Shift is pressed, make the line perfectly vertical
+                if (state.isShiftPressed) {
+                    newPos.x = state.currentLine.start.x;
+                }
+                
+                state.currentLine.end = newPos;
+                drawCanvas();
+                return;
+            }
+            
+            // Update cursor based on hover
+            if (!state.isPanning && !state.currentLine) {
+                const endpoint = findEndpointUnderMouse(pos);
+                if (endpoint) {
+                    canvas.style.cursor = 'move';
+                } else {
+                    updateCursor();
+                }
+            }
+        }
+
+        function handleCanvasMouseUp(e) {
+            if (state.isPanning) {
+                state.isPanning = false;
+                state.lastPanPoint = null;
+                updateCursor();
+                return;
+            }
+            
+            // Stop dragging endpoint
+            if (state.draggingEndpoint) {
+                state.draggingEndpoint = null;
+                updateCursor();
+                updateUI();
+                return;
+            }
+            
+            if (state.currentLine && state.currentLine.start && state.currentLine.end) {
+                if (state.mode === 'calibration') {
+                    state.calibration = state.currentLine;
+                    state.mode = 'none';
+                } else if (state.mode === 'measurement' && state.calibration) {
+                    const pixelLength = Math.sqrt(
+                        Math.pow(state.currentLine.end.x - state.currentLine.start.x, 2) +
+                        Math.pow(state.currentLine.end.y - state.currentLine.start.y, 2)
+                    );
+                    const calibrationPixels = Math.sqrt(
+                        Math.pow(state.calibration.end.x - state.calibration.start.x, 2) +
+                        Math.pow(state.calibration.end.y - state.calibration.start.y, 2)
+                    );
+                    const thickness = (pixelLength / calibrationPixels) * parseFloat(state.calibrationLength);
+                    
+                    state.measurements.push({
+                        line: state.currentLine,
+                        thickness: thickness,
+                        id: Date.now()
+                    });
+                }
+                state.currentLine = null;
+                updateUI();
+            }
+        }
+
+        function handleCanvasMouseLeave() {
+            state.isPanning = false;
+            state.currentLine = null;
+            state.draggingEndpoint = null;
+            drawCanvas();
+        }
+
+        function handleWheel(e) {
+            e.preventDefault();
+            if (!state.image) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Point in image space before zoom
+            const pointX = (mouseX - state.pan.x) / state.zoom;
+            const pointY = (mouseY - state.pan.y) / state.zoom;
+            
+            // Zoom factor
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+            const newZoom = Math.min(Math.max(state.zoom * zoomFactor, 0.1), 10);
+            
+            // Calculate new pan to keep point under mouse
+            state.pan.x = mouseX - pointX * newZoom;
+            state.pan.y = mouseY - pointY * newZoom;
+            state.zoom = newZoom;
+            
+            updateUI();
+        }
+
+        function zoomAtCenter(factor) {
+            if (!state.image) return;
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            const pointX = (centerX - state.pan.x) / state.zoom;
+            const pointY = (centerY - state.pan.y) / state.zoom;
+            
+            const newZoom = Math.min(Math.max(state.zoom * factor, 0.1), 10);
+            
+            state.pan.x = centerX - pointX * newZoom;
+            state.pan.y = centerY - pointY * newZoom;
+            state.zoom = newZoom;
+            
+            updateUI();
+        }
+
+        function resetView() {
+            if (!state.image) return;
+            
+            const containerWidth = canvas.offsetWidth;
+            const containerHeight = canvas.offsetHeight;
+            const scaleX = containerWidth / state.image.width;
+            const scaleY = containerHeight / state.image.height;
+            const fitZoom = Math.min(scaleX, scaleY, 1);
+            
+            state.zoom = fitZoom;
+            state.pan = {
+                x: (containerWidth - state.image.width * fitZoom) / 2,
+                y: (containerHeight - state.image.height * fitZoom) / 2
+            };
+            
+            updateUI();
+        }
+
+        function drawCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!state.image) return;
+            
+            ctx.save();
+            ctx.translate(state.pan.x, state.pan.y);
+            ctx.scale(state.zoom, state.zoom);
+            
+            // Draw image
+            ctx.drawImage(state.image, 0, 0);
+            
+            // Helper function to draw lines
+            function drawLine(line, color, width = 3, label = '') {
+                ctx.beginPath();
+                ctx.moveTo(line.start.x, line.start.y);
+                ctx.lineTo(line.end.x, line.end.y);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width / state.zoom;
+                ctx.stroke();
+                
+                // Draw crosshair at endpoints for better precision
+                const crossSize = 10 / state.zoom;
+                const crossWidth = 2 / state.zoom;
+                
+                // Function to draw a crosshair
+                function drawCrosshair(x, y) {
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = crossWidth;
+                    
+                    // Horizontal line
+                    ctx.beginPath();
+                    ctx.moveTo(x - crossSize, y);
+                    ctx.lineTo(x + crossSize, y);
+                    ctx.stroke();
+                    
+                    // Vertical line
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - crossSize);
+                    ctx.lineTo(x, y + crossSize);
+                    ctx.stroke();
+                    
+                    // White outline for better visibility
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = crossWidth + 1 / state.zoom;
+                    
+                    // Horizontal line outline
+                    ctx.beginPath();
+                    ctx.moveTo(x - crossSize, y);
+                    ctx.lineTo(x + crossSize, y);
+                    ctx.stroke();
+                    
+                    // Vertical line outline
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - crossSize);
+                    ctx.lineTo(x, y + crossSize);
+                    ctx.stroke();
+                    
+                    // Draw the color on top again
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = crossWidth;
+                    
+                    // Horizontal line
+                    ctx.beginPath();
+                    ctx.moveTo(x - crossSize, y);
+                    ctx.lineTo(x + crossSize, y);
+                    ctx.stroke();
+                    
+                    // Vertical line
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - crossSize);
+                    ctx.lineTo(x, y + crossSize);
+                    ctx.stroke();
+                }
+                
+                // Draw crosshairs at start and end points
+                drawCrosshair(line.start.x, line.start.y);
+                drawCrosshair(line.end.x, line.end.y);
+                
+                if (label) {
+                    const midX = (line.start.x + line.end.x) / 2;
+                    const midY = (line.start.y + line.end.y) / 2;
+                    ctx.fillStyle = color;
+                    ctx.font = `bold ${14 / state.zoom}px sans-serif`;
+                    // Draw text background for better readability
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.lineWidth = 3 / state.zoom;
+                    ctx.strokeText(label, midX + 10 / state.zoom, midY - 10 / state.zoom);
+                    ctx.fillText(label, midX + 10 / state.zoom, midY - 10 / state.zoom);
+                }
+            }
+            
+            // Draw calibration
+            if (state.calibration) {
+                drawLine(state.calibration, '#00ff00', 3, `${state.calibrationLength} ${state.calibrationUnit}`);
+            }
+            
+            // Draw measurements
+            state.measurements.forEach((measurement) => {
+                drawLine(measurement.line, '#ff00ff', 2, `${measurement.thickness.toFixed(3)} ${state.calibrationUnit}`);
+            });
+            
+            // Draw current line
+            if (state.currentLine && state.currentLine.start && state.currentLine.end) {
+                const color = state.mode === 'calibration' ? '#00ff00' : '#ff00ff';
+                drawLine(state.currentLine, color, 3);
+            }
+            
+            ctx.restore();
+        }
+
+        function deleteMeasurement(id) {
+            state.measurements = state.measurements.filter(m => m.id !== id);
+            updateUI();
+        }
+
+        function calculateAverageThickness() {
+            if (state.measurements.length === 0) return 0;
+            const sum = state.measurements.reduce((acc, m) => acc + m.thickness, 0);
+            return sum / state.measurements.length;
+        }
+
+        function getModeText() {
+            switch(state.mode) {
+                case 'calibration': return '🔧 Calibration Mode: Draw a line on a known distance (Hold Shift for vertical)';
+                case 'measurement': return '📏 Measurement Mode: Draw lines to measure thickness (Hold Shift for vertical)';
+                case 'pan': return '🖐️ Pan Mode: Click and drag to move the image';
+                default: return '👆 Select a mode or click line endpoints to adjust';
+            }
+        }
+
+        function updateCursor() {
+            if (state.isPanning) {
+                canvas.style.cursor = 'grabbing';
+            } else if (state.mode === 'pan') {
+                canvas.style.cursor = 'grab';
+            } else {
+                canvas.style.cursor = 'crosshair';
+            }
+        }
+
+        function updateUI() {
+            drawCanvas();
+            updateCursor();
+            
+            // Update mode indicator
+            modeIndicator.textContent = getModeText();
+            modeIndicator.style.display = state.image ? 'block' : 'none';
+            
+            // Update zoom controls
+            zoomLevel.textContent = Math.round(state.zoom * 100) + '%';
+            document.getElementById('zoomControls').style.display = state.image ? 'flex' : 'none';
+            
+            // Update buttons
+            calibrateBtn.disabled = !state.image;
+            calibrateBtn.textContent = state.calibration ? '✓ Recalibrate' : 'Start Calibration';
+            
+            measureBtn.disabled = !state.calibration;
+            panBtn.disabled = !state.image;
+            resetViewBtn.disabled = !state.image;
+            
+            // Update calibration info
+            const calibrationInfo = document.getElementById('calibrationInfo');
+            if (state.calibration) {
+                calibrationInfo.style.display = 'block';
+                calibrationInfo.textContent = `✓ Scale calibrated: ${state.calibrationLength} ${state.calibrationUnit}`;
+            } else {
+                calibrationInfo.style.display = 'none';
+            }
+            
+            // Update measurements list
+            measurementsList.innerHTML = '';
+            if (state.measurements.length === 0) {
+                measurementsList.innerHTML = '<div class="empty-state">No measurements yet</div>';
+            } else {
+                state.measurements.forEach((m, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'measurement-item';
+                    item.innerHTML = `
+                        <div class="measurement-info">
+                            <div class="measurement-label">Layer ${index + 1}</div>
+                            <div class="measurement-value">${m.thickness.toFixed(3)} ${state.calibrationUnit}</div>
+                        </div>
+                        <button class="delete-btn" onclick="deleteMeasurement(${m.id})">Delete</button>
+                    `;
+                    measurementsList.appendChild(item);
+                });
+            }
+            
+            // Update results
+            if (state.measurements.length > 0) {
+                resultBox.style.display = 'block';
+                averageThickness.textContent = `${calculateAverageThickness().toFixed(3)} ${state.calibrationUnit}`;
+                totalMeasurements.textContent = state.measurements.length;
+            } else {
+                resultBox.style.display = 'none';
+            }
+            
+            // Update zoom display
+            document.getElementById('zoomDisplay').textContent = `Zoom: ${Math.round(state.zoom * 100)}%`;
+        }
+
+        // Make deleteMeasurement global
+        window.deleteMeasurement = deleteMeasurement;
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
