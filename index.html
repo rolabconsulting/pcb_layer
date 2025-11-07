@@ -914,11 +914,7 @@
             }
             
             // Draw measurements
-            state.measurements.forEach((measurement) => {
-                drawLine(measurement.line, '#ff00ff', 2, `${measurement.thickness.toFixed(3)} ${state.calibrationUnit}`);
-            });
-            
-            // Draw current line
+            state.measurements.forEach((measurement) => {// Draw current line
             if (state.currentLine && state.currentLine.start && state.currentLine.end) {
                 const color = state.mode === 'calibration' ? '#00ff00' : '#ff00ff';
                 drawLine(state.currentLine, color, 3);
@@ -928,6 +924,10 @@
         }
 
         function deleteMeasurement(id) {
+                drawLine(measurement.line, '#ff00ff', 2, `${measurement.thickness.toFixed(3)} ${state.calibrationUnit}`);
+            });
+            
+            
             state.measurements = state.measurements.filter(m => m.id !== id);
             updateUI();
         }
