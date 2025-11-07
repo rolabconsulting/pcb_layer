@@ -386,6 +386,9 @@
                             ↺ Reset View
                         </button>
                     </div>
+                    <button class="btn btn-warning" id="exportBtn" disabled style="margin-top: 10px;">
+                        💾 Export Image
+                    </button>
                     <div class="info-text">
                         💡 Zoom: Mouse wheel<br/>
                         💡 Pan: Middle mouse button or Pan mode<br/>
@@ -439,6 +442,7 @@
         const measureBtn = document.getElementById('measureBtn');
         const panBtn = document.getElementById('panBtn');
         const resetViewBtn = document.getElementById('resetViewBtn');
+        const exportBtn = document.getElementById('exportBtn');
         const measurementsList = document.getElementById('measurementsList');
         const modeIndicator = document.getElementById('modeIndicator');
         const zoomLevel = document.getElementById('zoomLevel');
@@ -461,10 +465,13 @@
             
             calibrationLengthInput.addEventListener('input', (e) => {
                 state.calibrationLength = e.target.value;
+                recalculateAllMeasurements();
+                updateUI();
             });
-            
+
             calibrationUnitSelect.addEventListener('change', (e) => {
                 state.calibrationUnit = e.target.value;
+                recalculateAllMeasurements();
                 updateUI();
             });
             
@@ -484,7 +491,9 @@
             });
             
             resetViewBtn.addEventListener('click', resetView);
-            
+
+            exportBtn.addEventListener('click', exportCanvasImage);
+
             canvas.addEventListener('mousedown', handleCanvasMouseDown);
             canvas.addEventListener('mousemove', handleCanvasMouseMove);
             canvas.addEventListener('mouseup', handleCanvasMouseUp);
@@ -660,12 +669,14 @@
                 
                 if (state.draggingEndpoint.type === 'calibration') {
                     state.calibration[state.draggingEndpoint.endpoint] = newPos;
+                    // Recalculate all measurements when calibration changes
+                    recalculateAllMeasurements();
                 } else if (state.draggingEndpoint.type === 'measurement') {
                     const measurement = state.measurements.find(m => m.id === state.draggingEndpoint.measurementId);
                     if (measurement) {
                         measurement.line[state.draggingEndpoint.endpoint] = newPos;
-                        
-                        // Recalculate thickness
+
+                        // Recalculate thickness and pixel length
                         const pixelLength = Math.sqrt(
                             Math.pow(measurement.line.end.x - measurement.line.start.x, 2) +
                             Math.pow(measurement.line.end.y - measurement.line.start.y, 2)
@@ -674,6 +685,7 @@
                             Math.pow(state.calibration.end.x - state.calibration.start.x, 2) +
                             Math.pow(state.calibration.end.y - state.calibration.start.y, 2)
                         );
+                        measurement.pixelLength = pixelLength;
                         measurement.thickness = (pixelLength / calibrationPixels) * parseFloat(state.calibrationLength);
                     }
                 }
@@ -727,6 +739,8 @@
                 if (state.mode === 'calibration') {
                     state.calibration = state.currentLine;
                     state.mode = 'none';
+                    // Recalculate all existing measurements with new calibration
+                    recalculateAllMeasurements();
                 } else if (state.mode === 'measurement' && state.calibration) {
                     const pixelLength = Math.sqrt(
                         Math.pow(state.currentLine.end.x - state.currentLine.start.x, 2) +
@@ -737,10 +751,11 @@
                         Math.pow(state.calibration.end.y - state.calibration.start.y, 2)
                     );
                     const thickness = (pixelLength / calibrationPixels) * parseFloat(state.calibrationLength);
-                    
+
                     state.measurements.push({
                         line: state.currentLine,
                         thickness: thickness,
+                        pixelLength: pixelLength,  // Store pixel length for recalculation
                         id: Date.now()
                     });
                 }
@@ -800,20 +815,44 @@
 
         function resetView() {
             if (!state.image) return;
-            
+
             const containerWidth = canvas.offsetWidth;
             const containerHeight = canvas.offsetHeight;
             const scaleX = containerWidth / state.image.width;
             const scaleY = containerHeight / state.image.height;
             const fitZoom = Math.min(scaleX, scaleY, 1);
-            
+
             state.zoom = fitZoom;
             state.pan = {
                 x: (containerWidth - state.image.width * fitZoom) / 2,
                 y: (containerHeight - state.image.height * fitZoom) / 2
             };
-            
+
             updateUI();
+        }
+
+        function exportCanvasImage() {
+            if (!state.image) return;
+
+            // Create a temporary canvas with the current view
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = canvas.width;
+            exportCanvas.height = canvas.height;
+            const exportCtx = exportCanvas.getContext('2d');
+
+            // Copy the current canvas content
+            exportCtx.drawImage(canvas, 0, 0);
+
+            // Convert to blob and download
+            exportCanvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                link.download = `PCB_measurement_${timestamp}.png`;
+                link.href = url;
+                link.click();
+                URL.revokeObjectURL(url);
+            }, 'image/png');
         }
 
         function drawCanvas() {
@@ -997,6 +1036,27 @@
             return applyThresholdMapping(averageInMicrometers);
         }
 
+        function recalculateAllMeasurements() {
+            if (!state.calibration || state.measurements.length === 0) return;
+
+            const calibrationPixels = Math.sqrt(
+                Math.pow(state.calibration.end.x - state.calibration.start.x, 2) +
+                Math.pow(state.calibration.end.y - state.calibration.start.y, 2)
+            );
+
+            state.measurements.forEach(measurement => {
+                // Calculate pixel length if not stored (for backwards compatibility)
+                if (!measurement.pixelLength) {
+                    measurement.pixelLength = Math.sqrt(
+                        Math.pow(measurement.line.end.x - measurement.line.start.x, 2) +
+                        Math.pow(measurement.line.end.y - measurement.line.start.y, 2)
+                    );
+                }
+                // Recalculate thickness based on stored pixel length and current calibration
+                measurement.thickness = (measurement.pixelLength / calibrationPixels) * parseFloat(state.calibrationLength);
+            });
+        }
+
         function getModeText() {
             switch(state.mode) {
                 case 'calibration': return '🔧 Calibration Mode: Draw a line on a known distance (Hold Shift for vertical)';
@@ -1035,6 +1095,7 @@
             measureBtn.disabled = !state.calibration;
             panBtn.disabled = !state.image;
             resetViewBtn.disabled = !state.image;
+            exportBtn.disabled = !state.image;
             
             // Update calibration info
             const calibrationInfo = document.getElementById('calibrationInfo');
