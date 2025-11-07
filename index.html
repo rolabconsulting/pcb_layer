@@ -453,7 +453,10 @@
         }
 
         function setupEventListeners() {
-            uploadSection.addEventListener('click', () => fileInput.click());
+            uploadSection.addEventListener('click', () => {
+                fileInput.value = ''; // Reset file input to allow re-uploading
+                fileInput.click();
+            });
             fileInput.addEventListener('change', handleImageUpload);
             
             calibrationLengthInput.addEventListener('input', (e) => {
@@ -914,28 +917,84 @@
             }
             
             // Draw measurements
-            state.measurements.forEach((measurement) => {// Draw current line
+            state.measurements.forEach((measurement) => {
+                const micrometers = convertToMicrometers(measurement.thickness, state.calibrationUnit);
+                drawLine(measurement.line, '#ff00ff', 2, `${micrometers.toFixed(2)} μm`);
+            });
+
+            // Draw current line
             if (state.currentLine && state.currentLine.start && state.currentLine.end) {
                 const color = state.mode === 'calibration' ? '#00ff00' : '#ff00ff';
                 drawLine(state.currentLine, color, 3);
             }
-            
+
             ctx.restore();
         }
 
+        function convertToMicrometers(value, unit) {
+            // Convert any measurement to micrometers
+            switch(unit) {
+                case 'μm': return value;
+                case 'mm': return value * 1000;
+                case 'cm': return value * 10000;
+                default: return value;
+            }
+        }
+
+        function applyThresholdMapping(valueInMicrometers) {
+            // Apply threshold-based standardization
+            // 0μm < measured layer < 9μm -> 8 μm
+            if (valueInMicrometers > 0 && valueInMicrometers <= 9) {
+                return 8;
+            }
+            // 10μm < measured layer < 14μm -> 12 μm
+            else if (valueInMicrometers >= 10 && valueInMicrometers <= 14) {
+                return 12;
+            }
+            // 15μm < measured layer < 25μm -> 17 μm
+            else if (valueInMicrometers >= 15 && valueInMicrometers <= 25) {
+                return 17;
+            }
+            // 26μm < measured layer < 50μm -> 35 μm
+            else if (valueInMicrometers >= 26 && valueInMicrometers <= 50) {
+                return 35;
+            }
+            // 51μm < measured layer < 95μm -> 70 μm
+            else if (valueInMicrometers >= 51 && valueInMicrometers <= 95) {
+                return 70;
+            }
+            // 96μm < measured layer < 115μm -> 105 μm
+            else if (valueInMicrometers >= 96 && valueInMicrometers <= 115) {
+                return 105;
+            }
+            // 116μm < measured layer < 160μm -> 140 μm
+            else if (valueInMicrometers >= 116 && valueInMicrometers <= 160) {
+                return 140;
+            }
+            // If outside defined ranges, return original value rounded
+            return Math.round(valueInMicrometers);
+        }
+
+        function getStandardizedThickness(measurement) {
+            // Convert to micrometers and apply threshold mapping
+            const micrometers = convertToMicrometers(measurement.thickness, state.calibrationUnit);
+            return applyThresholdMapping(micrometers);
+        }
+
         function deleteMeasurement(id) {
-                drawLine(measurement.line, '#ff00ff', 2, `${measurement.thickness.toFixed(3)} ${state.calibrationUnit}`);
-            });
-            
-            
             state.measurements = state.measurements.filter(m => m.id !== id);
             updateUI();
         }
 
         function calculateAverageThickness() {
             if (state.measurements.length === 0) return 0;
-            const sum = state.measurements.reduce((acc, m) => acc + m.thickness, 0);
-            return sum / state.measurements.length;
+            // Calculate average of actual measurements in micrometers
+            const sum = state.measurements.reduce((acc, m) => {
+                return acc + convertToMicrometers(m.thickness, state.calibrationUnit);
+            }, 0);
+            const averageInMicrometers = sum / state.measurements.length;
+            // Apply threshold mapping to the average
+            return applyThresholdMapping(averageInMicrometers);
         }
 
         function getModeText() {
@@ -992,23 +1051,24 @@
                 measurementsList.innerHTML = '<div class="empty-state">No measurements yet</div>';
             } else {
                 state.measurements.forEach((m, index) => {
+                    const micrometers = convertToMicrometers(m.thickness, state.calibrationUnit);
                     const item = document.createElement('div');
                     item.className = 'measurement-item';
                     item.innerHTML = `
                         <div class="measurement-info">
                             <div class="measurement-label">Layer ${index + 1}</div>
-                            <div class="measurement-value">${m.thickness.toFixed(3)} ${state.calibrationUnit}</div>
+                            <div class="measurement-value">${micrometers.toFixed(2)} μm</div>
                         </div>
                         <button class="delete-btn" onclick="deleteMeasurement(${m.id})">Delete</button>
                     `;
                     measurementsList.appendChild(item);
                 });
             }
-            
+
             // Update results
             if (state.measurements.length > 0) {
                 resultBox.style.display = 'block';
-                averageThickness.textContent = `${calculateAverageThickness().toFixed(3)} ${state.calibrationUnit}`;
+                averageThickness.textContent = `${calculateAverageThickness().toFixed(0)} μm`;
                 totalMeasurements.textContent = state.measurements.length;
             } else {
                 resultBox.style.display = 'none';
